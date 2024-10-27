@@ -1,0 +1,316 @@
+-- HOCSINH
+
+--STORE PROCEDURE
+
+-- 1/ Từ tên tìm ra thông tin học sinh
+
+DILIMITER $$
+CREATE PROCEDURE
+Get_InfoByName (
+	IN p_TenHocSinh varchar(30)
+) 
+BEGIN
+	IF EXISTS (SELECT * FROM HocSinh WHERE Ho_ten = p_TenHocSinh)
+	BEGIN
+		SELECT *
+		FROM HocSinh 
+		WHERE Ho_ten = p_TenHocSinh;
+	END
+END;
+DILIMITER;
+
+--2/ Từ mã học sinh tìm ra các lớp đã học ở các năm học và tìm ra người chủ nhiệm
+
+DILIMITER $$
+CREATE PROCEDURE
+Get_InfoStudied_ByNumberOfStudent  (
+	IN p_MaHocSinh varchar(10)
+) 
+BEGIN
+	IF EXISTS (SELECT * FROM HocSinh WHERE Ma_hoc_sinh = p_MaHocSinh)
+	BEGIN
+		SELECT hs.Ma_hoc_sinh, hs.Ho_ten, l.Ten_lop, gv.Ma_giao_vien, gv.Ho_ten
+		FROM HocSinh hs, Lop l, ChuNhiem cn, GiaoVien gv
+			INNER l JOIN hs.Ma_lop = l.Ma_lop
+			INNER cn JOIN l.Ma_lop = cn.Ma_lop
+			INNER gv JOIN cn.Ma_giao_vien = gv.Ma_giao_vien
+		WHERE Ma_hoc_sinh = p_MaHocSinh;
+	END
+END;
+
+-- 3/ Từ mã học sinh tìm ra thông tin học sinh
+
+DILIMITER $$
+CREATE PROCEDURE
+Get_InfoByNumberOfStudent (
+	IN p_MaHocSinh varchar(10)
+) 
+BEGIN
+	IF EXISTS (SELECT * FROM HocSinh WHERE Ma_hoc_sinh = p_MaHocSinh)
+	BEGIN
+		SELECT *
+		FROM HocSinh 
+		WHERE Ma_hoc_sinh = p_MaHocSinh;
+	END
+END;
+DILIMITER;
+
+--4/ Từ mã học sinh liệt kê các môn và điểm của từng môn ở năm học tùy chọn
+
+DILIMITER $$
+CREATE PROCEDURE
+Get_ScoreByNumberOfStudent  (
+	IN p_MaHocSinh varchar(10),
+	IN p_NamHoc varchar(10)
+) 
+BEGIN
+	IF EXISTS (Find_ClassNo (p_MaHocSinh, p_NamHoc))
+	BEGIN
+		CREATE TEMP TABLE MaLop AS Find_ClassNo (p_MaHocSinh, p_NamHoc);
+	
+		SELECT mh.TenMonHoc, d.Diem_mieng, d.Diem_15_phut, d.Diem_1_tiet, d.Diem_thi,
+		CalculateAvrageScore (d.Diem_mieng, d.Diem_15_phut, d.Diem_1_tiet, d.Diem_thi) Diem_TBMon
+		FROM Diem d, MonHoc mh
+			INNER mh JOIN d.Ma_mon_hoc = mh.Ma_mon_hoc		
+		WHERE d.Ma_hoc_sinh = p_MaHocSinh
+		AND d.MaLop IN MaLop;
+	END
+END;
+DILIMITER;
+
+--5/ Từ mã học sinh và năm học tìm điểm trung bình và xếp loại của học đó
+
+DILIMITER $$
+CREATE PROCEDURE
+Get_AvrgAndTypeOfStudent  (
+	IN p_MaHocSinh varchar(10),
+	IN p_NamHoc varchar(10)
+) 
+BEGIN
+	IF EXISTS (Find_ClassNo (p_MaHocSinh, p_NamHoc))
+	BEGIN
+		DECLARE @Avrg float = CalculateAvrageScore_OfYear (p_MaHocSinh, p_NamHoc);
+		CREATE TEMP TABLE ThanhTich (Diem_TBCN float, XepLoai varchar(10));
+
+		UPDATE ThanhTich SET Diem_TBCN = @Avrg;
+
+		IF @Avrg >= 9.0
+		BEGIN		
+			UPDATE ThanhTich SET XepLoai = "Xuất sắc";
+		END;
+
+		IF @Avrg >= 8.0 & @Avrg < 9.0
+		BEGIN
+			UPDATE ThanhTich SET XepLoai = "Giỏi";
+		END;
+
+		IF @Avrg >= 7.0 & @Avrg < 8.0
+		BEGIN
+			UPDATE ThanhTich SET XepLoai = "Khá";
+		END;
+	
+		IF @Avrg >= 5.0 & @Avrg < 7.0
+		BEGIN
+			UPDATE ThanhTich SET XepLoai = "Trung bình";
+		END;
+
+		IF @Avrg >= 1.0 & @Avrg < 5.0
+		BEGIN
+			UPDATE ThanhTich SET XepLoai = "Yếu";
+		END;
+	
+		SELECT *
+		FROM ThanhTich;	
+	END
+END;
+DILIMITER;
+
+--PROCEDURE ứng dụng TRANSACTION thêm học sinh mới vào lớp
+
+DILIMITER $$
+CREATE PROCEDURE 
+Insert_NewStudent (
+	p_MaHocSinh varchar(10), 
+	p_HoTen varchar(30),
+	p_NgaySinh Date,
+	p_DiaChi varchar(40),
+	p_SDTPhuHuynh varchar(10),
+	p_MaLop varchar(10)
+)
+BEGIN
+	BEGIN TRANSACTION;
+	DECLARE @MaLop varchar(10) = p_MaLop;
+	IF EXISTS (SELECT * FROM Lop WHERE Ma_lop = p_MaLop)
+	BEGIN
+		INSERT INTO HocSinh (Ma_hoc_sinh, Ho_ten, Ngay_sinh, Dia_chi, SDT_phu_huynh, Ma_lop)
+		VALUES (p_MaHocSinh, p_HoTen, p_NgaySinh, p_DiaChi, p_SDTPhuHuynh, p_MaLop);
+	END
+	ELSE
+	BEGIN
+		PRINT 'Lớp không tồn tại!';
+		ROLLBACK TRANSACTION;
+	END
+	COMMIT TRANSACTION;
+END;
+DILIMITER;
+
+--Xóa các Store Function đã tạo bên trên
+--DROP PROCERDURE IF EXISTS Get_InfoByName;
+--DROP PROCERDURE IF EXISTS Get_InfoStudied_ByNumberOfStudent;
+--DROP PROCERDURE IF EXISTS Get_InfoByNumberOfStudent;
+--DROP PROCERDURE IF EXISTS Get_ScoreByNumberOfStudent;
+--DROP PROCERDURE IF EXISTS Get_AvrgAndTypeOfStudent;
+--DROP PROCERDURE IF EXISTS Insert_NewStudent;
+
+--FUNCTION
+
+--1/ Tính điểm trung bình môn
+
+DILIMITER $$
+CREATE FUNCTION CalculateAvrageScore (@DiemMieng float, @Diem15Phut float, @Diem1Tiet float, @DiemThi float)
+RETURNS decimal (10, 2)
+DETERMINISTIC
+BEGIN
+	DECLARE @Avrg float = 0;
+	@Avrg = (@DiemMieng + @Diem15Phut + (@Diem1Tiet * 2) + (@DiemThi * 3))/5
+	RETURN @Avrg
+END;
+DILIMITER;
+
+--2/ Tính điểm trung bình cả năm khi biết mã học sinh và năm học
+
+DILIMITER $$
+CREATE FUNCTION CalculateAvrageScore_OfYear (@MaHocSinh varchar(10), @NamHoc varchar(10))
+RETURNS decimal (10, 2)
+DETERMINISTIC
+BEGIN
+	IF EXISTS (Find_ClassNo (@MaHocSinh, @NamHoc))
+	BEGIN
+		CREATE TEMP TABLE MaLop AS Find_ClassNo (@MaHocSinh, @NamHoc)
+	
+		DECLARE @Avrg DECIMAL(10,2) = 0;
+		SELECT @Avrg = @Avrg + CalculateAvrageScore (Diem_mieng, Diem_15_phut, Diem_1_tiet, Diem_thi)
+		FROM Diem 	
+		WHERE Ma_hoc_sinh = @MaHocSinh
+		AND MaLop IN MaLop;
+		
+		DECLARE @NoSubject int = 0;
+		SELECT @NoSubject = COUNT(*)
+		FROM MonHoc;
+
+		RETURN @Avrg/@NoSubject;
+	END
+	ELSE
+	BEGIN
+		RETURN 0;
+	END;
+END;
+DILIMITER;
+
+--3/ Tìm mã lớp thông qua mã học sinh và năm học
+
+DILIMITER $$
+CREATE FUNCTION Find_ClassNo (@MaHocSinh varchar(10), @NamHoc varchar(10))
+RETURNS TABLE(MaLop varchar(10))
+DETERMINISTIC
+BEGIN
+	RETURN(
+		SELECT Ma_lop
+		FROM Hoc_sinh 
+		WHERE Ma_hoc_sinh = @MaHocSinh
+		INTERSECT
+		SELECT Ma_lop
+		FROM Lop 
+		WHERE Nien_khoa = @NamHoc;
+	)
+END;
+DILIMITER;
+
+--Xóa các Function đã tạo bên trên
+--DROP FUNCTION IF EXISTS CalculateAvrageScore;
+--DROP FUNCTION IF EXISTS CalculateAvrageScore_OfYear;
+--DROP FUNCTION IF EXISTS Find_ClassNo;
+
+--TRIGGER
+
+--1/ Tạo trigger khi thêm 1 học sinh mới vào lớp nhưng mà lớp đầy
+
+DILIMITER $$
+CREATE TRIGGER
+Check_Class_Capacity
+BEFORE INSERT 
+ON HocSinh
+FOR EACH ROW
+BEGIN
+	DECLARE total_students INT;
+	SELECT COUNT(*) INTO total_students
+	FROM HocSinh
+	WHERE Ma_lop = new.Ma_lop;
+
+	IF total_students >= 
+			(SELECT So_cho_toi_da 
+			FROM PhongHoc
+			WHERE Ma_phong = (SELECT Ma_phong 
+					FROM PhongLop
+					WHERE Ma_lop = New.Ma_lop))
+	THEN
+		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Lớp đã đầy không thể thêm học sinh';
+	END IF;
+END;
+DILIMITER;
+
+--2/ Tạo trigger khi thêm 1 học sinh mới vào lớp nhưng mà bị bỏ sót giá trị
+
+DILIMITER $$
+CREATE TRIGGER
+Check_Insert_ForgotValue
+BEFORE INSERT 
+ON HocSinh
+FOR EACH ROW
+BEGIN
+	IF NEW.Ma_hoc_sinh IS NULL OR NEW.Ma_hoc_sinh = ""
+	THEN
+		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mã học sinh không được để trống';
+	END IF;
+
+	IF NEW.Ho_ten IS NULL OR NEW.Ho_ten = ""
+	THEN
+		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Họ tên học sinh không được để trống';
+	END IF;
+
+	IF NEW.Ngay_sinh IS NULL OR NEW.Ngay_sinh = ""
+	THEN
+		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ngày sinh không được để trống';
+	END IF;
+
+	IF NEW.Dia_chi IS NULL OR NEW.Dia_chi = ""
+	THEN
+		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Địa chỉ học sinh không được để trống';
+	END IF;
+
+	IF NEW.Phu_huynh IS NULL OR NEW.Phu_huynh = ""
+	THEN
+		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Phụ huynh học sinh không được để trống';
+	END IF;
+END;
+DILIMITER;
+
+--Xóa các trigger đã tạo
+
+--DROP TRIGGER IF EXISTS Check_Class_Capacity;
+--DROP TRIGGER IF EXISTS Check_Insert_ForgotValue;
+
+--INDEX
+--1/ Tạo index cho bảng học sinh
+
+CREATE INDEX
+idx_HocSinh_MaHocSinh on
+HocSinh(Ma_hoc_sinh);
+
+CREATE INDEX
+idx_HocSinh_MaLop on
+HocSinh(Ma_lop);
+
+--Xóa các index đã tạo
+--DROP INDEX idx_HocSinh_MaHocSinh ON HocSinh
+--DROP INDEX idx_HocSinh_MaLop ON HocSinh
