@@ -10,11 +10,11 @@ Get_InfoByName (
 	IN p_TenHocSinh varchar(30)
 ) 
 BEGIN
-	IF EXISTS (SELECT * FROM HocSinh WHERE Ho_ten = p_TenHocSinh)
+	IF EXISTS (SELECT * FROM HocSinh WHERE hs_hoTen = p_TenHocSinh)
 	BEGIN
 		SELECT *
 		FROM HocSinh 
-		WHERE Ho_ten = p_TenHocSinh;
+		WHERE hs_hoTen = p_TenHocSinh;
 	END
 END;
 DILIMITER;
@@ -29,12 +29,12 @@ Get_InfoStudied_ByNumberOfStudent  (
 BEGIN
 	IF EXISTS (SELECT * FROM HocSinh WHERE Ma_hoc_sinh = p_MaHocSinh)
 	BEGIN
-		SELECT hs.Ma_hoc_sinh, hs.Ho_ten, l.Ten_lop, gv.Ma_giao_vien, gv.Ho_ten
+		SELECT hs.maHS, hs.hoTen, l.tenLop, gv.gv_maGV, gv.hoTen
 		FROM HocSinh hs, Lop l, ChuNhiem cn, GiaoVien gv
-			INNER l JOIN hs.Ma_lop = l.Ma_lop
-			INNER cn JOIN l.Ma_lop = cn.Ma_lop
-			INNER gv JOIN cn.Ma_giao_vien = gv.Ma_giao_vien
-		WHERE Ma_hoc_sinh = p_MaHocSinh;
+			INNER l JOIN hs.maLop = l.maLop
+			INNER cn JOIN l.maLop = cn.maLop
+			INNER gv JOIN cn.v_maGV = gv.v_maGV
+		WHERE hs.maHS = p_MaHocSinh;
 	END
 END;
 
@@ -46,11 +46,11 @@ Get_InfoByNumberOfStudent (
 	IN p_MaHocSinh varchar(10)
 ) 
 BEGIN
-	IF EXISTS (SELECT * FROM HocSinh WHERE Ma_hoc_sinh = p_MaHocSinh)
+	IF EXISTS (SELECT * FROM HocSinh WHERE maHS = p_MaHocSinh)
 	BEGIN
 		SELECT *
 		FROM HocSinh 
-		WHERE Ma_hoc_sinh = p_MaHocSinh;
+		WHERE maHS = p_MaHocSinh;
 	END
 END;
 DILIMITER;
@@ -68,12 +68,12 @@ BEGIN
 	BEGIN
 		CREATE TEMP TABLE MaLop AS Find_ClassNo (p_MaHocSinh, p_NamHoc);
 	
-		SELECT mh.TenMonHoc, d.Diem_mieng, d.Diem_15_phut, d.Diem_1_tiet, d.Diem_thi,
-		CalculateAvrageScore (d.Diem_mieng, d.Diem_15_phut, d.Diem_1_tiet, d.Diem_thi) Diem_TBMon
+		SELECT mh.maMonHoc, d.diemMieng, d.diem15Phut, d.diem1Tiet, d.diemThi,
+		CalculateAvrageScore (d.diemMieng, d.diem15Phut, d.diem1Tiet, d.diemThi) Diem_TBMon
 		FROM Diem d, MonHoc mh
-			INNER mh JOIN d.Ma_mon_hoc = mh.Ma_mon_hoc		
-		WHERE d.Ma_hoc_sinh = p_MaHocSinh
-		AND d.MaLop IN MaLop;
+			INNER mh JOIN d.maMonHoc = mh.maMonHoc		
+		WHERE d.maHS = p_MaHocSinh
+		AND d.maLop IN MaLop;
 	END
 END;
 DILIMITER;
@@ -134,7 +134,7 @@ Insert_NewStudent (
 	p_HoTen varchar(30),
 	p_NgaySinh Date,
 	p_DiaChi varchar(40),
-	p_SDTPhuHuynh varchar(10),
+	p_SDTPhuHuynh varchar(15),
 	p_MaLop varchar(10)
 )
 BEGIN
@@ -142,7 +142,7 @@ BEGIN
 	DECLARE @MaLop varchar(10) = p_MaLop;
 	IF EXISTS (SELECT * FROM Lop WHERE Ma_lop = p_MaLop)
 	BEGIN
-		INSERT INTO HocSinh (Ma_hoc_sinh, Ho_ten, Ngay_sinh, Dia_chi, SDT_phu_huynh, Ma_lop)
+		INSERT INTO HocSinh (hs_maHS, hs_hoTen, hs_ngaySinh, hs_diaChi, hs_sdtPhuHuynh, hs_maLop)
 		VALUES (p_MaHocSinh, p_HoTen, p_NgaySinh, p_DiaChi, p_SDTPhuHuynh, p_MaLop);
 	END
 	ELSE
@@ -172,8 +172,8 @@ RETURNS decimal (10, 2)
 DETERMINISTIC
 BEGIN
 	DECLARE @Avrg float = 0;
-	@Avrg = (@DiemMieng + @Diem15Phut + (@Diem1Tiet * 2) + (@DiemThi * 3))/5
-	RETURN @Avrg
+	@Avrg = (@DiemMieng + @Diem15Phut + (@Diem1Tiet * 2) + (@DiemThi * 3))/7;
+	RETURN @Avrg;
 END;
 DILIMITER;
 
@@ -191,8 +191,8 @@ BEGIN
 		DECLARE @Avrg DECIMAL(10,2) = 0;
 		SELECT @Avrg = @Avrg + CalculateAvrageScore (Diem_mieng, Diem_15_phut, Diem_1_tiet, Diem_thi)
 		FROM Diem 	
-		WHERE Ma_hoc_sinh = @MaHocSinh
-		AND MaLop IN MaLop;
+		WHERE hs_maHS = @MaHocSinh
+		AND maLop IN MaLop;
 		
 		DECLARE @NoSubject int = 0;
 		SELECT @NoSubject = COUNT(*)
@@ -215,13 +215,13 @@ RETURNS TABLE(MaLop varchar(10))
 DETERMINISTIC
 BEGIN
 	RETURN(
-		SELECT Ma_lop
+		SELECT hs_maLop
 		FROM Hoc_sinh 
-		WHERE Ma_hoc_sinh = @MaHocSinh
+		WHERE hs_maHS = @MaHocSinh
 		INTERSECT
-		SELECT Ma_lop
+		SELECT maLop
 		FROM Lop 
-		WHERE Nien_khoa = @NamHoc;
+		WHERE nienKhoa = @NamHoc;
 	)
 END;
 DILIMITER;
@@ -245,14 +245,14 @@ BEGIN
 	DECLARE total_students INT;
 	SELECT COUNT(*) INTO total_students
 	FROM HocSinh
-	WHERE Ma_lop = new.Ma_lop;
+	WHERE hs_maLop = new.hs_maLop;
 
 	IF total_students >= 
 			(SELECT So_cho_toi_da 
 			FROM PhongHoc
-			WHERE Ma_phong = (SELECT Ma_phong 
+			WHERE maPhong = (SELECT maPhong 
 					FROM PhongLop
-					WHERE Ma_lop = New.Ma_lop))
+					WHERE maLop = New.hs_maLop))
 	THEN
 		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Lớp đã đầy không thể thêm học sinh';
 	END IF;
@@ -268,30 +268,26 @@ BEFORE INSERT
 ON HocSinh
 FOR EACH ROW
 BEGIN
-	IF NEW.Ma_hoc_sinh IS NULL OR NEW.Ma_hoc_sinh = ""
+	IF NEW.hs_maHS IS NULL OR NEW.hs_maHS = ""
 	THEN
 		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mã học sinh không được để trống';
 	END IF;
 
-	IF NEW.Ho_ten IS NULL OR NEW.Ho_ten = ""
+	IF NEW.hs_hoTen IS NULL OR NEW.hs_hoTen = ""
 	THEN
 		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Họ tên học sinh không được để trống';
 	END IF;
 
-	IF NEW.Ngay_sinh IS NULL OR NEW.Ngay_sinh = ""
+	IF NEW.hs_ngaySinh IS NULL OR NEW.hs_ngaySinh = ""
 	THEN
 		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ngày sinh không được để trống';
 	END IF;
 
-	IF NEW.Dia_chi IS NULL OR NEW.Dia_chi = ""
+	IF NEW.hs_diaChi IS NULL OR NEW.hs_diaChi = ""
 	THEN
 		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Địa chỉ học sinh không được để trống';
 	END IF;
 
-	IF NEW.Phu_huynh IS NULL OR NEW.Phu_huynh = ""
-	THEN
-		SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Phụ huynh học sinh không được để trống';
-	END IF;
 END;
 DILIMITER;
 
@@ -305,11 +301,11 @@ DILIMITER;
 
 CREATE INDEX
 idx_HocSinh_MaHocSinh on
-HocSinh(Ma_hoc_sinh);
+HocSinh(hs_maHS);
 
 CREATE INDEX
 idx_HocSinh_MaLop on
-HocSinh(Ma_lop);
+HocSinh(hs_maLop);
 
 --Xóa các index đã tạo
 --DROP INDEX idx_HocSinh_MaHocSinh ON HocSinh
